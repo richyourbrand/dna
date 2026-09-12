@@ -41,7 +41,7 @@ const SRE=/([一-龥]{2,6}(?:監理所|監理站))/;
 /* 車牌格式：新式/舊式、字母+數字或數字+字母皆可，支援 2-3 碼英文 + 3-4 碼數字 */
 const PLATE_EXTRACT_SRC="(?<![A-Za-z0-9])(?:([A-Za-z]{2,3})-?(\\d{3,4})|(\\d{3,4})-?([A-Za-z]{2,3}))(?![A-Za-z0-9])";
 const PLATE_TEST=/(?<![A-Za-z0-9])(?:[A-Za-z]{2,3}-?\d{3,4}|\d{3,4}-?[A-Za-z]{2,3})(?![A-Za-z0-9])/;
-const BUILD_VERSION="2026-09-13-1";
+const BUILD_VERSION="2026-09-13-2";
 
 const VEH=[
   {name:"一般自小客車",file:"all"},
@@ -191,7 +191,8 @@ function App(){
   /* ── 自動抓取 ── */
   const doFetch=useCallback(async()=>{
     const v=VEH[vIdx];
-    setFetching(true);setFMsg("");setTick(0);setErrs([]);setRows([]);
+    setFetching(true);setFMsg("");setTick(0);setErrs([]);setRows([]);setJumpIdx({});
+    savedRef.current={items:[],tm:{},iType:"plate"};
     const t0=Date.now();
     try{
       const url=`https://test.tnstiger.workers.dev/${v.file}.json`;
@@ -217,10 +218,10 @@ function App(){
 
   /* ── 手動分析 ── */
   const doManual=useCallback(()=>{
-    if(!text.trim()){setStatus("請先輸入要分析的內容");return;}
+    if(!text.trim()){setStatus("請先輸入要分析的內容");setRows([]);setJumpIdx({});savedRef.current={items:[],tm:{},iType:"plate"};return;}
     const{items,errs:e,tm,iType:it}=parseText(text);
     setErrs(e);
-    if(!items.length){setStatus("沒有可以分析的資料");return;}
+    if(!items.length){setStatus("沒有可以分析的資料");setRows([]);setJumpIdx({});savedRef.current={items:[],tm:{},iType:"plate"};return;}
     const initSA=items.length<=10;
     setSa(initSA);
     showResult(items,tm,it,initSA,"",0);
