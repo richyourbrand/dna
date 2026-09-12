@@ -52,13 +52,13 @@ const VEH=[
 ];
 
 const TC={
-  plate:{col:"大吉車牌",sta:true,nm:"車牌",df:true},
-  phone:{col:"大吉電話",sta:false,nm:"電話",df:false},
-  id:{col:"大吉良辰",sta:false,nm:"身分證字號",df:false},
-  address:{col:"大吉住址",sta:false,nm:"門牌號碼",df:false},
-  number:{col:"輸入數字",sta:false,nm:"數字",df:false},
-  letters:{col:"大吉英文",sta:false,nm:"英文字串",df:false},
-  mixed:{col:"輸入項目",sta:false,nm:"項目",df:false},
+  plate:{col:"大吉車牌",sta:true,nm:"車牌"},
+  phone:{col:"大吉電話",sta:false,nm:"電話"},
+  id:{col:"大吉良辰",sta:false,nm:"身分證字號"},
+  address:{col:"大吉住址",sta:false,nm:"門牌號碼"},
+  number:{col:"輸入數字",sta:false,nm:"數字"},
+  letters:{col:"大吉英文",sta:false,nm:"英文字串"},
+  mixed:{col:"輸入項目",sta:false,nm:"項目"},
 };
 
 /* ═══════ 易經核心 ═══════ */
@@ -186,8 +186,9 @@ function App(){
       const items=[],tm={};
       plates.forEach(p=>{if(p.tag){items.push({k:p.tag,sta:p.station||"未知",t:"plate"});tm[p.tag]="plate";}});
       setFMsg(`✅ 抓取完畢（${items.length} 筆，耗時 ${el} 秒）`);
-      setSa(false);
-      showResult(items,tm,"plate",false,ut,el);
+      const initSA=items.length<=10;
+      setSa(initSA);
+      showResult(items,tm,"plate",initSA,ut,el);
     }catch(err){
       setFMsg("❌ 抓取失敗："+err.message);
       setStatus("抓取失敗，請改用手動貼上（從 car-tags.com 複製）");
@@ -201,7 +202,7 @@ function App(){
     const{items,errs:e,tm,iType:it}=parseText(text);
     setErrs(e);
     if(!items.length){setStatus("沒有可以分析的資料");return;}
-    const initSA=!(TC[it]||TC.mixed).df;
+    const initSA=items.length<=10;
     setSa(initSA);
     showResult(items,tm,it,initSA,"",0);
   },[text]);
