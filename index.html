@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>循霧數字易經選牌軟體</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -38,6 +41,7 @@ const SRE=/([一-龥]{2,6}(?:監理所|監理站))/;
 /* 車牌格式：新式/舊式、字母+數字或數字+字母皆可，支援 2-3 碼英文 + 3-4 碼數字 */
 const PLATE_EXTRACT_SRC="(?<![A-Za-z0-9])(?:([A-Za-z]{2,3})-?(\\d{3,4})|(\\d{3,4})-?([A-Za-z]{2,3}))(?![A-Za-z0-9])";
 const PLATE_TEST=/(?<![A-Za-z0-9])(?:[A-Za-z]{2,3}-?\d{3,4}|\d{3,4}-?[A-Za-z]{2,3})(?![A-Za-z0-9])/;
+const BUILD_VERSION="2026-09-13-1";
 
 const VEH=[
   {name:"一般自小客車",file:"all"},
@@ -347,7 +351,8 @@ function App(){
 
       <p style={{textAlign:"center",color:"#bbb",fontSize:"0.68em",padding:"8px 0",lineHeight:1.7}}>
         規則：5 夾中間忽略、5 在首尾為伏位、0 為伏位<br/>
-        吉星：天醫、生氣、延年、伏位　｜　凶星：絕命、禍害、六煞、五鬼
+        吉星：天醫、生氣、延年、伏位　｜　凶星：絕命、禍害、六煞、五鬼<br/>
+        版本 {BUILD_VERSION}
       </p>
     </div>
   );
