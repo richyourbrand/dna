@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>循霧數字易經選牌軟體</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1565C0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231565C0'/%3E%3Ctext x='50' y='70' font-size='56' text-anchor='middle' fill='white' font-family='sans-serif'%3E易%3C/text%3E%3C/svg%3E">
+<style>
+  html,body{margin:0;background:#f5f5f7;-webkit-text-size-adjust:100%;}
+  #root{padding-top:env(safe-area-inset-top);padding-bottom:calc(16px + env(safe-area-inset-bottom));}
+  * { -webkit-tap-highlight-color: transparent; }
+  button, select, textarea, input { -webkit-appearance: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useRef, useCallback, useEffect } = React;
+
+/* ═══════ 核心資料 ═══════ */
+const LM={A:"1",B:"2",C:"3",D:"4",E:"5",F:"6",G:"7",H:"8",I:"9",J:"10",K:"11",L:"12",M:"13",N:"14",O:"15",P:"16",Q:"17",R:"18",S:"19",T:"20",U:"21",V:"22",W:"23",X:"24",Y:"25",Z:"26"};
+const YJ={};
+[["天醫","13,31,68,86,49,94,27,72"],["生氣","14,41,67,76,39,93,28,82"],["延年","19,91,78,87,34,43,26,62"],
+["伏位","11,22,33,44,55,66,77,88,99,00"],["絕命","12,21,69,96,48,84,37,73"],["禍害","17,71,89,98,46,64,23,32"],
+["六煞","16,61,47,74,38,83,29,92"],["五鬼","18,81,79,97,36,63,24,42"]].forEach(([s,ns])=>ns.split(",").forEach(n=>{YJ[n]=s}));
+const BD=new Set(["絕命","禍害","六煞","五鬼"]);
+const TID=new Set("ABCDEFGHJKLMNPQRSTUVXYWZIO".split(""));
+const SRE=/([一-龥]{2,6}(?:監理所|監理站))/;
+
+const VEH=[
+  {name:"一般自小客車",file:"all"},
+  {name:"電動自小客車",file:"all_E"},
+  {name:"電動租賃車",file:"all_T"},
+  {name:"租賃小客貨車",file:"all_R"},
+  {name:"紅牌重機車",file:"all_M"},
+  {name:"黃牌重機車",file:"all_Y"},
+  {name:"白牌機車",file:"all_H"},
+  {name:"電動機車",file:"all_P"},
+  {name:"電動輕型機車",file:"all_Q"},
+];
+
+const TC={
+  plate:{col:"大吉車牌",sta:true,nm:"車牌",df:true},
+  phone:{col:"大吉電話",sta:false,nm:"電話",df:false},
+  id:{col:"大吉良辰",sta:false,nm:"身分證字號",df:false},
+  address:{col:"大吉住址",sta:false,nm:"門牌號碼",df:false},
+  number:{col:"輸入數字",sta:false,nm:"數字",df:false},
+  mixed:{col:"輸入項目",sta:false,nm:"項目",df:false},
+};
+
+/* ═══════ 易經核心 ═══════ */
+function pr(a,b){if(a==="0"||b==="0")return"伏位";if(a==="5"||b==="5")return"伏位";return YJ[a+b]||"";}
+function bseq(st,stop=true){const n=st.length,cl=st.filter((d,i)=>!(d==="5"&&i>0&&i<n-1));const fl=[];let bd=false;for(let i=0;i<cl.length-1;i++){const s=pr(cl[i],cl[i+1]);if(s){if(BD.has(s)){bd=true;if(stop)return{fl,bd};}fl.push(s);}}return{fl,bd};}
+function skc(num){if(num.length!==4)return false;const d=[...num];for(const[i,j]of[[0,2],[1,3]]){const a=d[i],b=d[j];if((a==="5"&&i!==3)||(b==="5"&&j!==3))continue;if(BD.has(pr(a,b)))return true;}return false;}
+
+/* ═══════ 類型偵測 ═══════ */
+function dl(line){const u=line.trim().toUpperCase(),d=u.replace(/\D/g,"");if(/[A-Z]{3}-?\d{4}/.test(u))return"plate";if(/^[A-Z]\d+$/.test(u))return(/^[A-Z]\d{9}$/.test(u)&&TID.has(u[0]))?"id":"bad_id";if(/^09/.test(d))return/^09\d{8}$/.test(d)?"phone":"bad_phone";if(/^0[2-8]/.test(d))return/^0[2-8]\d{7,8}$/.test(d)?"phone":"bad_phone";if((/\d+\s*(?:號|樓|室|F|之)/.test(line)||/(?:路|街|巷|弄|段|區|市|縣)/.test(line))&&/\d/.test(line))return"address";if(/^\d{2,}$/.test(d)&&!/[A-Za-z]/.test(line))return"number";if(SRE.test(line))return"_station";return null;}
+function ms(item,type){const u=item.trim().toUpperCase();if(type==="plate"){const m=u.match(/([A-Z]{3})-?(\d{4})/);if(!m)return{s:[],n:""};const s=[];[...m[1]].forEach(c=>s.push(...(LM[c]||"").split("")));s.push(...m[2].split(""));return{s,n:m[2]};}if(type==="id"){const m=u.match(/^([A-Z])(\d{9})$/);if(!m)return{s:[],n:""};return{s:[...(LM[m[1]]||"").split(""),...m[2].split("")],n:""};}return{s:u.replace(/\D/g,"").split(""),n:""};}
+
+/* ═══════ 分析函式 ═══════ */
+function analyze(items, tm, showAll){
+  const doF=!showAll, rows=[];
+  for(const it of items){
+    const t=tm[it.k]||"plate";
+    const{s:st,n:num}=ms(it.k,t);if(!st.length)continue;
+    let fl,bd;
+    if(t==="plate"){({fl,bd}=bseq(st,true));if(bd||skc(num)){if(doF)continue;({fl,bd}=bseq(st,false));}}
+    else{if(doF){({fl,bd}=bseq(st,true));if(bd)continue;}else{({fl,bd}=bseq(st,false));}}
+    if(!fl.length)continue;
+    const gc={生氣:0,天醫:0,延年:0,伏位:0},bc={絕命:0,禍害:0,六煞:0,五鬼:0};
+    fl.forEach(s=>{if(s in gc)gc[s]++;if(s in bc)bc[s]++;});
+    const gp=Object.entries(gc).filter(([,v])=>v).map(([k,v])=>v+k);
+    const bp=Object.entries(bc).filter(([,v])=>v).map(([k,v])=>v+k);
+    let strict=false;for(let i=0;i<=fl.length-3;i++){if(fl[i]==="生氣"&&fl[i+1]==="天醫"&&fl[i+2]==="延年"){strict=true;break;}}
+    rows.push({key:it.k,sta:it.sta,track:fl.join("➡️"),count:"("+[...gp,...bp].join(" ")+")",strict,bad:bd});
+  }
+  return rows;
+}
+
+function parseText(text){
+  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
+  const items=[],errs=[],tm={},types=new Set();
+  let sta="未知監理單位";
+  for(const line of lines){
+    const lt=dl(line);
+    if(lt==="_station"){const m=line.match(SRE);if(m)sta=m[1];continue;}
+    if(!lt)continue;
+    if(lt==="bad_phone"){const d=line.replace(/\D/g,"");errs.push(d.startsWith("09")?`「${line}」手機應為 09 開頭共 10 碼（目前 ${d.length} 碼）`:`「${line}」市話應為 0X 開頭共 9～10 碼（目前 ${d.length} 碼）`);continue;}
+    if(lt==="bad_id"){const u=line.trim().toUpperCase(),dg=u.replace(/[^0-9]/g,"");errs.push(!TID.has(u[0])?`「${line}」首字母「${u[0]}」不是有效的台灣縣市代碼`:`「${line}」身分證應為 1 英文字母＋9 數字（目前字母後有 ${dg.length} 碼）`);continue;}
+    types.add(lt);
+    if(lt==="plate"){const re=/([A-Za-z]{3})-?(\d{4})/g;let m;while((m=re.exec(line))!==null){const fp=m[1].toUpperCase()+"-"+m[2];if(!fp.includes("VIP")&&!fp.includes("ALL")){items.push({k:fp,sta,t:"plate"});tm[fp]="plate";}}}
+    else if(lt==="id"){const u=line.trim().toUpperCase();items.push({k:u,sta:"",t:"id"});tm[u]="id";}
+    else if(lt==="phone"){items.push({k:line.trim(),sta:"",t:"phone"});tm[line.trim()]="phone";}
+    else if(lt==="address"){items.push({k:line.trim(),sta:"",t:"address"});tm[line.trim()]="address";}
+    else if(lt==="number"){const d=line.replace(/\D/g,"");if(d.length>=2){items.push({k:d,sta:"",t:"number"});tm[d]="number";}else errs.push(`「${line}」數字需至少 2 碼`);}
+  }
+  const seen=new Set(),uniq=[];items.forEach(it=>{if(!seen.has(it.k)){seen.add(it.k);uniq.push(it);}});
+  const iType=types.size===1?[...types][0]:"mixed";
+  return{items:uniq,errs,tm,iType};
+}
+
+/* ═══════ React 元件 ═══════ */
+function App(){
+  const[vIdx,setVIdx]=useState(0);
+  const[text,setText]=useState("");
+  const[rows,setRows]=useState([]);
+  const[sa,setSa]=useState(false);
+  const[iType,setIType]=useState("plate");
+  const[status,setStatus]=useState("");
+  const[errs,setErrs]=useState([]);
+  const[fetching,setFetching]=useState(false);
+  const[fMsg,setFMsg]=useState("");
+  const[shI,setShI]=useState(-1);
+  const[upTime,setUpTime]=useState("");
+  const[elapsed,setElapsed]=useState(0);
+  const[tick,setTick]=useState(0);
+  const savedRef=useRef({items:[],tm:{},iType:"plate"});
+  const tbRef=useRef(null);
+  const tickRef=useRef(null);
+
+  // 抓取計時器
+  useEffect(()=>{
+    if(fetching){tickRef.current=setInterval(()=>setTick(t=>t+1),1000);return()=>clearInterval(tickRef.current);}
+    else{if(tickRef.current)clearInterval(tickRef.current);}
+  },[fetching]);
+
+  const showResult=(items,tm,iType,showAll,ut,el)=>{
+    const r=analyze(items,tm,showAll);
+    setRows(r);setIType(iType);setShI(-1);
+    savedRef.current={items,tm,iType};
+    const cfg=TC[iType]||TC.mixed;
+    const good=r.filter(x=>!x.bad).length;
+    const det=r.length!==good?`（吉星 ${good}｜含凶星 ${r.length-good}）`:"";
+    const ts=ut?`　｜　資料版本：${ut}`:"";
+    const es=el?`　｜　抓取耗時：${el} 秒`:"";
+    setStatus(`成功在 ${items.length} 組中，分析出 ${r.length} 組${cfg.nm}${det}${ts}${es}`);
+  };
+
+  /* ── 自動抓取 ── */
+  const doFetch=useCallback(async()=>{
+    const v=VEH[vIdx];
+    setFetching(true);setFMsg("");setTick(0);setErrs([]);setRows([]);
+    const t0=Date.now();
+    try{
+      const url=`https://test.tnstiger.workers.dev/${v.file}.json`;
+      const r=await fetch(url);
+      if(!r.ok)throw new Error(`HTTP ${r.status}`);
+      const j=await r.json();
+      const plates=j.allTags||[];
+      const ut=j.update||"";
+      const el=Math.round((Date.now()-t0)/1000);
+      setElapsed(el);setUpTime(ut);
+      const items=[],tm={};
+      plates.forEach(p=>{if(p.tag){items.push({k:p.tag,sta:p.station||"未知",t:"plate"});tm[p.tag]="plate";}});
+      setFMsg(`✅ 抓取完畢（${items.length} 筆，耗時 ${el} 秒）`);
+      setSa(false);
+      showResult(items,tm,"plate",false,ut,el);
+    }catch(err){
+      setFMsg("❌ 抓取失敗："+err.message);
+      setStatus("抓取失敗，請改用手動貼上（從 car-tags.com 複製）");
+    }
+    setFetching(false);
+  },[vIdx]);
+
+  /* ── 手動分析 ── */
+  const doManual=useCallback(()=>{
+    if(!text.trim()){setStatus("請先輸入要分析的內容");return;}
+    const{items,errs:e,tm,iType:it}=parseText(text);
+    setErrs(e);
+    if(!items.length){setStatus("沒有可以分析的資料");return;}
+    const initSA=!(TC[it]||TC.mixed).df;
+    setSa(initSA);
+    showResult(items,tm,it,initSA,"",0);
+  },[text]);
+
+  /* ── 切換 ── */
+  const toggle=useCallback(()=>{
+    const nsa=!sa;setSa(nsa);
+    const{items,tm,iType:it}=savedRef.current;
+    if(items.length)showResult(items,tm,it,nsa,upTime,elapsed);
+  },[sa,upTime,elapsed]);
+
+  /* ── 清除 ── */
+  const doClear=()=>{setText("");setRows([]);setStatus("");setErrs([]);setSa(false);setShI(-1);setFMsg("");setUpTime("");setElapsed(0);savedRef.current={items:[],tm:{},iType:"plate"};};
+
+  /* ── 複製 ── */
+  const doCopy=()=>{if(!rows.length)return;const t=rows.map(r=>[r.key,r.sta,r.track,r.count].filter(Boolean).join("\t")).join("\n");navigator.clipboard?.writeText(t).then(()=>alert("已複製到剪貼簿")).catch(()=>alert("複製失敗"));};
+
+  /* ── 純生天延跳轉 ── */
+  const shItems=rows.map((r,i)=>r.strict?i:-1).filter(i=>i>=0);
+  const jumpSh=()=>{if(!shItems.length)return;const ni=(shI+1)%shItems.length;setShI(ni);const el=tbRef.current?.children[shItems[ni]];if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.style.background="#FFF9C4";setTimeout(()=>{el.style.background="";},1500);}};
+
+  const cfg=TC[iType]||TC.mixed;
+  const isNum=iType==="number";
+  const dw=String(rows.length).length||1;
+
+  return(
+    <div style={{maxWidth:740,margin:"0 auto",padding:"8px 12px",fontFamily:'"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif',fontSize:15}}>
+      <h2 style={{textAlign:"center",fontSize:"1.2em",margin:"8px 0 2px",letterSpacing:2}}>循霧數字易經選牌軟體</h2>
+      <p style={{textAlign:"center",fontSize:"0.72em",color:"#888",margin:"0 0 8px"}}>
+        第一步：選擇自動抓取車牌　/　手動輸入（車牌 / 電話 / 身分證字號 / 門牌號碼）複製貼上
+      </p>
+
+      {/* ── 自動抓取區 ── */}
+      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:6}}>
+        <span style={{fontWeight:700,fontSize:"0.88em",whiteSpace:"nowrap"}}>🚗 選擇車種：</span>
+        <select value={vIdx} onChange={e=>setVIdx(+e.target.value)} disabled={fetching}
+          style={{flex:"1 1 130px",padding:"7px 4px",fontSize:"0.9em",borderRadius:6,border:"1px solid #ccc",fontFamily:"inherit"}}>
+          {VEH.map((v,i)=><option key={i} value={i}>{v.name}</option>)}
+        </select>
+        <button onClick={doFetch} disabled={fetching}
+          style={{...B,background:"#1565C0",whiteSpace:"nowrap",minWidth:140,opacity:fetching?.7:1}}>
+          🔄 自動抓取車牌資料
+        </button>
+      </div>
+      {/* 抓取狀態 */}
+      {(fetching||fMsg)&&<div style={{textAlign:"center",fontSize:"0.85em",fontWeight:700,padding:"2px 0 4px",
+        color:fMsg.startsWith("✅")?"#2E7D32":fMsg.startsWith("❌")?"#C62828":"#E65100"}}>
+        {fetching?`⏳ 抓取中... ${tick} 秒`:fMsg}
+      </div>}
+
+      <div style={{textAlign:"center",fontSize:"0.75em",color:"#aaa",margin:"2px 0 6px"}}>── 或手動貼上 ──</div>
+
+      {/* ── 手動輸入區 ── */}
+      <textarea value={text} onChange={e=>setText(e.target.value)}
+        placeholder={"每行一筆，自動判別類型，例如：\nCAC-1351（車牌）\n0919304939（電話）\nA123456789（身分證）\n803高雄市鹽埕區大義街1號（門牌）\n13491（純數字）"}
+        style={{width:"100%",minHeight:70,fontSize:14,padding:8,border:"2px solid #ccc",borderRadius:8,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
+
+      {/* ── 按鈕 ── */}
+      <div style={{display:"flex",gap:6,margin:"8px 0",flexWrap:"wrap"}}>
+        <button onClick={doManual} style={{...B,background:"#2E7D32",flex:"2 1 150px",fontSize:"0.95em",padding:"11px 8px"}}>
+          🚀 一鍵啟動循霧數字易經篩選
+        </button>
+        <button onClick={toggle} style={{...B,background:sa?"#37474F":"#E65100",flex:"1 1 100px",fontSize:"0.82em"}}>
+          🔍 {sa?"目前：顯示全部結果":"目前：僅顯示吉星"}
+        </button>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:4}}>
+        <button onClick={doClear} style={{...B,background:"#43A047",flex:1}}>🧹 一鍵清除所有內容</button>
+        <button onClick={doCopy} style={{...B,background:"#1565C0",flex:1}}>📋 一鍵轉出（複製）</button>
+      </div>
+
+      {/* ── 錯誤 ── */}
+      {errs.length>0&&<div style={{background:"#FFEBEE",border:"1px solid #EF9A9A",borderRadius:8,padding:"8px 10px",margin:"6px 0",fontSize:"0.82em",color:"#C62828",whiteSpace:"pre-wrap"}}>
+        <span style={{float:"right",cursor:"pointer",fontWeight:700,fontSize:"1.1em"}} onClick={()=>setErrs([])}>✕</span>
+        ⚠️ 輸入錯誤，請重新輸入：{"\n"}{errs.slice(0,5).join("\n")}{errs.length>5?`\n...還有 ${errs.length-5} 筆錯誤`:""}
+      </div>}
+
+      {/* ── 狀態列 ── */}
+      {status&&<div style={{textAlign:"center",padding:"6px 4px",fontSize:"0.85em",fontWeight:700,color:"#2E7D32"}}>{status}</div>}
+
+      {/* ── 純生天延 ── */}
+      <div onClick={jumpSh} style={{textAlign:"center",padding:"4px",fontSize:"0.85em",fontWeight:700,
+        color:shItems.length?"#D32F2F":"#999",cursor:shItems.length?"pointer":"default"}}>
+        {rows.length===0?"尚未篩選，純生天延車牌會顯示在這裡":
+          shItems.length?(shI>=0?`🔴 純生天延${cfg.nm}共 ${shItems.length} 組，目前第 ${shI+1} 組（再點下一組 →）`:`🔴 純生天延${cfg.nm}共 ${shItems.length} 組，點我逐一定位 →`):
+          `本次沒有純生天延${cfg.nm}`}
+      </div>
+
+      {/* ── 結果表格 ── */}
+      {rows.length>0&&<div style={{maxHeight:"55vh",overflow:"auto",border:"1px solid #ddd",borderRadius:8,background:"#fff",marginTop:4}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:"0.82em"}}>
+          <thead><tr style={{background:"#333",color:"#fff",position:"sticky",top:0,zIndex:1}}>
+            {!isNum&&<TH>序號</TH>}
+            {!isNum&&<TH>{cfg.col}</TH>}
+            {cfg.sta&&<TH>所屬監理單位</TH>}
+            <TH>磁場流向</TH>
+            <TH>能量統計</TH>
+          </tr></thead>
+          <tbody ref={tbRef}>
+            {rows.map((r,i)=>(
+              <tr key={i} style={{color:r.strict?"#FF0000":r.bad?"#AAA":"#333",fontWeight:r.strict?700:400,borderBottom:"1px solid #eee",background:i%2?"#fafafa":"#fff"}}>
+                {!isNum&&<TD>[{String(i+1).padStart(dw,"0")}]</TD>}
+                {!isNum&&<TD style={{wordBreak:"break-all"}}>{r.key}</TD>}
+                {cfg.sta&&<TD>{r.sta}</TD>}
+                <TD style={{textAlign:"left",wordBreak:"break-all"}}>{r.track}</TD>
+                <TD>{r.count}</TD>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>}
+
+      <p style={{textAlign:"center",color:"#bbb",fontSize:"0.68em",padding:"8px 0",lineHeight:1.7}}>
+        規則：5 夾中間忽略、5 在首尾為伏位、0 為伏位<br/>
+        吉星：天醫、生氣、延年、伏位　｜　凶星：絕命、禍害、六煞、五鬼
+      </p>
+    </div>
+  );
+}
+
+const B={padding:"10px 8px",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:"0.85em",cursor:"pointer",fontFamily:"inherit"};
+function TH({children}){return<th style={{padding:"7px 5px",textAlign:"center",fontSize:"0.88em",whiteSpace:"nowrap"}}>{children}</th>;}
+function TD({children,style={}}){return<td style={{padding:"6px 4px",textAlign:"center",...style}}>{children}</td>;}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
