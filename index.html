@@ -98,10 +98,22 @@ function analyze(items, tm, showAll){
     const gp=Object.entries(gc).filter(([,v])=>v).map(([k,v])=>v+k);
     const bp=Object.entries(bc).filter(([,v])=>v).map(([k,v])=>v+k);
     let strict=false;for(let i=0;i<=fl.length-3;i++){if(fl[i]==="生氣"&&fl[i+1]==="天醫"&&fl[i+2]==="延年"){strict=true;break;}}
-    rows.push({key:it.k,sta:it.sta,track:fl.join("➡️"),count:"("+[...gp,...bp].join(" ")+")",strict,bad:bd});
+    rows.push({key:it.k,sta:it.sta,track:fl.join("➡️"),count:"("+[...gp,...bp].join(" ")+")",strict,bad:bd,gc});
   }
   return rows;
 }
+
+/* ═══════ 快速定位條件 ═══════ */
+function goodRatio(row,star){
+  const total=row.gc.生氣+row.gc.天醫+row.gc.延年+row.gc.伏位;
+  return total?row.gc[star]/total:0;
+}
+const JUMP_CATS=[
+  {key:"strict",emoji:"🔴",label:"純生天延",test:r=>r.strict},
+  {key:"tian",emoji:"🟡",label:"天醫過半",test:r=>goodRatio(r,"天醫")>0.5},
+  {key:"sheng",emoji:"🟢",label:"生氣過半",test:r=>goodRatio(r,"生氣")>0.5},
+  {key:"yan",emoji:"🔵",label:"延年過半",test:r=>goodRatio(r,"延年")>0.5},
+];
 
 function parseText(text){
   const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
@@ -143,7 +155,7 @@ function App(){
   const[errs,setErrs]=useState([]);
   const[fetching,setFetching]=useState(false);
   const[fMsg,setFMsg]=useState("");
-  const[shI,setShI]=useState(-1);
+  const[jumpIdx,setJumpIdx]=useState({});
   const[upTime,setUpTime]=useState("");
   const[elapsed,setElapsed]=useState(0);
   const[tick,setTick]=useState(0);
@@ -159,7 +171,7 @@ function App(){
 
   const showResult=(items,tm,iType,showAll,ut,el)=>{
     const r=analyze(items,tm,showAll);
-    setRows(r);setIType(iType);setShI(-1);
+    setRows(r);setIType(iType);setJumpIdx({});
     savedRef.current={items,tm,iType};
     const cfg=TC[iType]||TC.mixed;
     const good=r.filter(x=>!x.bad).length;
@@ -215,14 +227,22 @@ function App(){
   },[sa,upTime,elapsed]);
 
   /* ── 清除 ── */
-  const doClear=()=>{setText("");setRows([]);setStatus("");setErrs([]);setSa(false);setShI(-1);setFMsg("");setUpTime("");setElapsed(0);savedRef.current={items:[],tm:{},iType:"plate"};};
+  const doClear=()=>{setText("");setRows([]);setStatus("");setErrs([]);setSa(false);setJumpIdx({});setFMsg("");setUpTime("");setElapsed(0);savedRef.current={items:[],tm:{},iType:"plate"};};
 
   /* ── 複製 ── */
   const doCopy=()=>{if(!rows.length)return;const t=rows.map(r=>[r.key,r.sta,r.track,r.count].filter(Boolean).join("\t")).join("\n");navigator.clipboard?.writeText(t).then(()=>alert("已複製到剪貼簿")).catch(()=>alert("複製失敗"));};
 
-  /* ── 純生天延跳轉 ── */
-  const shItems=rows.map((r,i)=>r.strict?i:-1).filter(i=>i>=0);
-  const jumpSh=()=>{if(!shItems.length)return;const ni=(shI+1)%shItems.length;setShI(ni);const el=tbRef.current?.children[shItems[ni]];if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.style.background="#FFF9C4";setTimeout(()=>{el.style.background="";},1500);}};
+  /* ── 快速定位跳轉 ── */
+  const jumpData=JUMP_CATS.map(cat=>({...cat,items:rows.map((r,i)=>cat.test(r)?i:-1).filter(i=>i>=0)}));
+  const jumpTo=(catKey)=>{
+    const cat=jumpData.find(c=>c.key===catKey);
+    if(!cat||!cat.items.length)return;
+    const cur=jumpIdx[catKey]??-1;
+    const ni=(cur+1)%cat.items.length;
+    setJumpIdx(prev=>({...prev,[catKey]:ni}));
+    const el=tbRef.current?.children[cat.items[ni]];
+    if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.style.background="#FFF9C4";setTimeout(()=>{el.style.background="";},1500);}
+  };
 
   const cfg=TC[iType]||TC.mixed;
   const isNum=iType==="number";
@@ -283,13 +303,20 @@ function App(){
       {/* ── 狀態列 ── */}
       {status&&<div style={{textAlign:"center",padding:"6px 4px",fontSize:"0.85em",fontWeight:700,color:"#2E7D32"}}>{status}</div>}
 
-      {/* ── 純生天延 ── */}
-      <div onClick={jumpSh} style={{textAlign:"center",padding:"4px",fontSize:"0.85em",fontWeight:700,
-        color:shItems.length?"#D32F2F":"#999",cursor:shItems.length?"pointer":"default"}}>
-        {rows.length===0?"尚未篩選，純生天延車牌會顯示在這裡":
-          shItems.length?(shI>=0?`🔴 純生天延${cfg.nm}共 ${shItems.length} 組，目前第 ${shI+1} 組（再點下一組 →）`:`🔴 純生天延${cfg.nm}共 ${shItems.length} 組，點我逐一定位 →`):
-          `本次沒有純生天延${cfg.nm}`}
-      </div>
+      {/* ── 快速定位 ── */}
+      {rows.length===0
+        ? <div style={{textAlign:"center",padding:"4px",fontSize:"0.85em",fontWeight:700,color:"#999"}}>尚未篩選，快速定位功能會顯示在這裡</div>
+        : jumpData.map(cat=>{
+            const idx=jumpIdx[cat.key]??-1;
+            return(
+              <div key={cat.key} onClick={()=>jumpTo(cat.key)} style={{textAlign:"center",padding:"4px",fontSize:"0.85em",fontWeight:700,
+                color:cat.items.length?"#D32F2F":"#999",cursor:cat.items.length?"pointer":"default"}}>
+                {cat.items.length?(idx>=0?`${cat.emoji} ${cat.label}${cfg.nm}共 ${cat.items.length} 組，目前第 ${idx+1} 組（再點下一組 →）`:`${cat.emoji} ${cat.label}${cfg.nm}共 ${cat.items.length} 組，點我逐一定位 →`):
+                `本次沒有${cat.label}${cfg.nm}`}
+              </div>
+            );
+          })
+      }
 
       {/* ── 結果表格 ── */}
       {rows.length>0&&<div style={{maxHeight:"55vh",overflow:"auto",border:"1px solid #ddd",borderRadius:8,background:"#fff",marginTop:4}}>
