@@ -58,6 +58,7 @@ const TC={
   address:{col:"大吉住址",sta:false,nm:"門牌號碼"},
   number:{col:"輸入數字",sta:false,nm:"數字"},
   letters:{col:"大吉英文",sta:false,nm:"英文字串"},
+  alnum:{col:"大吉英數",sta:false,nm:"英數字串"},
   mixed:{col:"輸入項目",sta:false,nm:"項目"},
 };
 
@@ -67,7 +68,7 @@ function bseq(st,stop=true){const n=st.length,cl=st.filter((d,i)=>!(d==="5"&&i>0
 function skc(num){if(num.length!==4)return false;const d=[...num];for(const[i,j]of[[0,2],[1,3]]){const a=d[i],b=d[j];if((a==="5"&&i!==3)||(b==="5"&&j!==3))continue;if(BD.has(pr(a,b)))return true;}return false;}
 
 /* ═══════ 類型偵測 ═══════ */
-function dl(line){const u=line.trim().toUpperCase(),d=u.replace(/\D/g,"");if(PLATE_TEST.test(u))return"plate";if(/^[A-Z]\d+$/.test(u))return(/^[A-Z]\d{9}$/.test(u)&&TID.has(u[0]))?"id":"bad_id";if(/^[A-Z]{2,12}$/.test(u))return"letters";if(/^09/.test(d))return/^09\d{8}$/.test(d)?"phone":"bad_phone";if(/^0[2-8]/.test(d))return/^0[2-8]\d{7,8}$/.test(d)?"phone":"bad_phone";if((/\d+\s*(?:號|樓|室|F|之)/.test(line)||/(?:路|街|巷|弄|段|區|市|縣)/.test(line))&&/\d/.test(line))return"address";if(/^\d{2,}$/.test(d)&&!/[A-Za-z]/.test(line))return"number";if(SRE.test(line))return"_station";return null;}
+function dl(line){const u=line.trim().toUpperCase(),d=u.replace(/\D/g,"");if(PLATE_TEST.test(u))return"plate";if(/^[A-Z]\d+$/.test(u))return(/^[A-Z]\d{9}$/.test(u)&&TID.has(u[0]))?"id":"bad_id";if(/^[A-Z]{2,}$/.test(u))return"letters";if(/^[A-Z0-9]+$/.test(u)&&/[A-Z]/.test(u)&&/\d/.test(u))return"alnum";if(/^09/.test(d))return/^09\d{8}$/.test(d)?"phone":"bad_phone";if(/^0[2-8]/.test(d))return/^0[2-8]\d{7,8}$/.test(d)?"phone":"bad_phone";if((/\d+\s*(?:號|樓|室|F|之)/.test(line)||/(?:路|街|巷|弄|段|區|市|縣)/.test(line))&&/\d/.test(line))return"address";if(/^\d{2,}$/.test(d)&&!/[A-Za-z]/.test(line))return"number";if(SRE.test(line))return"_station";return null;}
 function ms(item,type){
   const u=item.trim().toUpperCase();
   if(type==="plate"){
@@ -80,6 +81,7 @@ function ms(item,type){
   }
   if(type==="id"){const m=u.match(/^([A-Z])(\d{9})$/);if(!m)return{s:[],n:""};return{s:[...(LM[m[1]]||"").split(""),...m[2].split("")],n:""};}
   if(type==="letters"){const s=[];[...u].forEach(c=>s.push(...(LM[c]||"").split("")));return{s,n:""};}
+  if(type==="alnum"){const s=[];[...u].forEach(c=>{if(/[0-9]/.test(c))s.push(c);else s.push(...(LM[c]||"").split(""));});return{s,n:""};}
   return{s:u.replace(/\D/g,"").split(""),n:""};
 }
 
@@ -135,6 +137,7 @@ function parseText(text){
     }
     else if(lt==="id"){const u=line.trim().toUpperCase();items.push({k:u,sta:"",t:"id"});tm[u]="id";}
     else if(lt==="letters"){const u=line.trim().toUpperCase();items.push({k:u,sta:"",t:"letters"});tm[u]="letters";}
+    else if(lt==="alnum"){const u=line.trim().toUpperCase();items.push({k:u,sta:"",t:"alnum"});tm[u]="alnum";}
     else if(lt==="phone"){items.push({k:line.trim(),sta:"",t:"phone"});tm[line.trim()]="phone";}
     else if(lt==="address"){items.push({k:line.trim(),sta:"",t:"address"});tm[line.trim()]="address";}
     else if(lt==="number"){const d=line.replace(/\D/g,"");if(d.length>=2){items.push({k:d,sta:"",t:"number"});tm[d]="number";}else errs.push(`「${line}」數字需至少 2 碼`);}
@@ -252,7 +255,7 @@ function App(){
     <div style={{maxWidth:740,margin:"0 auto",padding:"8px 12px",fontFamily:'"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif',fontSize:15}}>
       <h2 style={{textAlign:"center",fontSize:"1.2em",margin:"8px 0 2px",letterSpacing:2}}>循霧數字易經選牌軟體</h2>
       <p style={{textAlign:"center",fontSize:"0.72em",color:"#888",margin:"0 0 8px"}}>
-        第一步：選擇自動抓取車牌　/　手動輸入（車牌 / 電話 / 身分證字號 / 門牌號碼 / 純英文）複製貼上
+        第一步：選擇自動抓取車牌　/　手動輸入（車牌 / 電話 / 身分證字號 / 門牌號碼 / 純英文 / 英數混合）複製貼上
       </p>
 
       {/* ── 自動抓取區 ── */}
@@ -277,7 +280,7 @@ function App(){
 
       {/* ── 手動輸入區 ── */}
       <textarea value={text} onChange={e=>setText(e.target.value)}
-        placeholder={"每行一筆，自動判別類型，例如：\nCAC-1351（新式車牌）\nAB-1234（舊式車牌）\n123-ABC（機車車牌）\n0919304939（電話）\nA123456789（身分證）\n803高雄市鹽埕區大義街1號（門牌）\n13491（純數字）\nABCDE（純英文）"}
+        placeholder={"每行一筆，自動判別類型，例如：\nCAC-1351（新式車牌）\nAB-1234（舊式車牌）\n123-ABC（機車車牌）\n0919304939（電話）\nA123456789（身分證）\n803高雄市鹽埕區大義街1號（門牌）\n13491（純數字）\nABCDE（純英文）\nA1B2C3D4（英數混合，不限位數）"}
         style={{width:"100%",minHeight:70,fontSize:14,padding:8,border:"2px solid #ccc",borderRadius:8,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
 
       {/* ── 按鈕 ── */}
